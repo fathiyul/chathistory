@@ -4,6 +4,7 @@ from __future__ import annotations
 import curses
 import textwrap
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from codex import (
@@ -112,7 +113,7 @@ class SessionBrowserApp:
                 f"{root} / {relative}",
             )
 
-            visible_rows = max(1, height - 7)
+            visible_rows = max(1, height - 9)
             scroll = max(0, min(selected_index - visible_rows + 1, selected_index))
             start_row = 4
             for row_offset, item in enumerate(items[scroll : scroll + visible_rows]):
@@ -127,6 +128,11 @@ class SessionBrowserApp:
                 if item.kind in {"home", "back"} and absolute_index != selected_index:
                     attr = curses.color_pair(4)
                 self._addstr(start_row + row_offset, 2, label[: width - 4], attr)
+
+            detail_lines = self._browser_detail_lines(items[selected_index], width)
+            detail_row = height - 5
+            for offset, line in enumerate(detail_lines):
+                self._addstr(detail_row + offset, 2, line[: width - 4], curses.color_pair(4))
 
             footer = "Enter: open  ←/Backspace: up  Home item: provider menu  Esc: quit"
             self._addstr(height - 3, 2, footer[: width - 4], curses.color_pair(4))
@@ -410,6 +416,34 @@ class SessionBrowserApp:
                 return next_index
         return selected_index
 
+    def _browser_detail_lines(self, item: ExplorerItem, width: int) -> list[str]:
+        if item.kind == "file" and item.path is not None:
+            stat = item.path.stat()
+            modified = datetime.fromtimestamp(stat.st_mtime).strftime("%b %d, %Y %H:%M")
+            size = self._format_size(stat.st_size)
+            return [
+                f"Selected: {item.path.name}",
+                f"Modified: {modified}    Size: {size}",
+            ]
+        if item.kind == "dir" and item.path is not None:
+            return [f"Directory: {item.path.name}/", "Press Enter to open"]
+        if item.kind == "home":
+            return ["Home", "Return to provider selection"]
+        if item.kind == "back":
+            return ["Back", "Go up one directory"]
+        return ["", ""]
+
+    def _format_size(self, size_bytes: int) -> str:
+        units = ["B", "KB", "MB", "GB"]
+        size = float(size_bytes)
+        for unit in units:
+            if size < 1024 or unit == units[-1]:
+                if unit == "B":
+                    return f"{int(size)} {unit}"
+                return f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size_bytes} B"
+
     def _config_key_for_label(self, label: str) -> str | None:
         mapping = {
             "Output": "pdf",
@@ -454,7 +488,12 @@ class SessionBrowserApp:
     def _draw_status(self, row: int, width: int) -> None:
         if not self.status_message:
             return
-        color = curses.color_pair(5) if self.status_message.startswith("Error") else curses.color_pair(4)
+        if self.status_message.startswith("Error"):
+            color = curses.color_pair(5)
+        elif self.status_message.startswith("Generated"):
+            color = curses.color_pair(6)
+        else:
+            color = curses.color_pair(4)
         self._addstr(row, 2, self.status_message[: width - 4], color)
 
     def _addstr(self, y: int, x: int, text: str, attr: int = 0) -> None:

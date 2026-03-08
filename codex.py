@@ -539,6 +539,17 @@ def parse_tags(raw_tags: str | None) -> list[str]:
     return tags
 
 
+def sanitize_output_stem(title: str, fallback: str) -> str:
+    normalized = re.sub(r"\s+", " ", title).strip()
+    if not normalized:
+        normalized = fallback
+    sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "-", normalized)
+    sanitized = re.sub(r"\s*-\s*", " - ", sanitized)
+    sanitized = re.sub(r"\s+", " ", sanitized).strip(" .-")
+    sanitized = re.sub(r"( - ){2,}", " - ", sanitized)
+    return sanitized or fallback
+
+
 def normalize_collapse_settings(
     threshold: int, visible_lines: int
 ) -> tuple[int, int]:
@@ -1272,6 +1283,7 @@ def render_session(source_path: Path, options: RenderOptions) -> Path:
     )
     records = load_jsonl(source_path)
     display_title = options.title or source_path.name
+    output_stem = sanitize_output_stem(display_title, source_path.stem)
     meta, sections = build_transcript(
         records,
         options.full,
@@ -1296,14 +1308,14 @@ def render_session(source_path: Path, options: RenderOptions) -> Path:
         output_path = (
             Path(options.output).expanduser().resolve()
             if options.output
-            else (Path.cwd() / f"{source_path.stem}.pdf")
+            else (Path.cwd() / f"{output_stem}.pdf")
         )
         if options.keep_html:
             html_for_pdf = Path(options.keep_html).expanduser().resolve()
             write_text(html_for_pdf, document)
         else:
             with tempfile.TemporaryDirectory(prefix="codex-session-") as tmpdir:
-                html_for_pdf = Path(tmpdir) / f"{source_path.stem}.html"
+                html_for_pdf = Path(tmpdir) / f"{output_stem}.html"
                 write_text(html_for_pdf, document)
                 render_pdf(options.chrome_path, html_for_pdf, output_path)
                 return output_path
@@ -1314,7 +1326,7 @@ def render_session(source_path: Path, options: RenderOptions) -> Path:
     html_path = (
         Path(options.output).expanduser().resolve()
         if options.output
-        else (Path.cwd() / f"{source_path.stem}.html")
+        else (Path.cwd() / f"{output_stem}.html")
     )
     write_text(html_path, document)
     return html_path

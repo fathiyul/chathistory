@@ -48,7 +48,7 @@ Run the direct renderer when you already know the file and flags you want:
 chathistory-codex input.jsonl
 ```
 
-By default, exports are written to the directory where you run the command unless you set `--output`.
+By default, exports are written to the directory where you run the command unless you set `--output`. If you set a title, the default filename follows that title with filesystem-safe sanitizing.
 
 ## Terminal Browser
 
@@ -124,7 +124,7 @@ chathistory-codex input.jsonl --full --include-turn-context --include-events
 ### Flags
 
 - `input` — path to a session `.jsonl`; defaults to the latest session
-- `-o`, `--output` — output path; defaults to `./<session>.html` or `./<session>.pdf`
+- `-o`, `--output` — output path; defaults to a sanitized version of the title, or the session filename if no title is set
 - `--chrome-path` — Chrome/Chromium binary used for PDF rendering; defaults to `google-chrome` or `CHROME_BIN`
 - `--title` — custom document title shown in the transcript header
 - `--tags` — comma-separated tags shown under the header metadata
