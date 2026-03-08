@@ -1,9 +1,20 @@
 [project]
 name = "chathistory"
 version = "0.1.0"
-description = "Add your description here"
+description = "Terminal browser and exporter for AI coding session history"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "pygments>=2.19.2",
 ]
+
+[project.scripts]
+chathistory = "cli:main"
+chathistory-codex = "codex:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["cli", "codex"]

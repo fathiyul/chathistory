@@ -96,11 +96,13 @@ class SessionBrowserApp:
                 return PROVIDER_OPTIONS[selection]
 
     def file_browser(self, root: Path) -> str:
-        selected_index = 0
+        selected_index = self._first_selectable_index(
+            self._list_explorer_items(root, self.current_dir)
+        )
         while True:
             items = self._list_explorer_items(root, self.current_dir)
-            if selected_index >= len(items):
-                selected_index = max(0, len(items) - 1)
+            if selected_index >= len(items) or not self._is_selectable(items[selected_index]):
+                selected_index = self._first_selectable_index(items)
 
             self._clear()
             height, width = self.stdscr.getmaxyx()
@@ -117,6 +119,9 @@ class SessionBrowserApp:
                 absolute_index = scroll + row_offset
                 attr = self._selected_attr() if absolute_index == selected_index else curses.color_pair(0)
                 label = item.label
+                if item.kind == "separator":
+                    self._addstr(start_row + row_offset, 2, ""[: width - 4], curses.color_pair(0))
+                    continue
                 if item.kind == "dir":
                     label += "/"
                 if item.kind in {"home", "back"} and absolute_index != selected_index:
@@ -131,15 +136,17 @@ class SessionBrowserApp:
             if key in {27, ord("q")}:
                 return "quit"
             if key == curses.KEY_UP:
-                selected_index = (selected_index - 1) % len(items)
+                selected_index = self._move_selection(items, selected_index, -1)
                 continue
             if key == curses.KEY_DOWN:
-                selected_index = (selected_index + 1) % len(items)
+                selected_index = self._move_selection(items, selected_index, 1)
                 continue
             if key in {curses.KEY_LEFT, curses.KEY_BACKSPACE, 127}:
                 if self.current_dir != root:
                     self.current_dir = self.current_dir.parent
-                    selected_index = 0
+                    selected_index = self._first_selectable_index(
+                        self._list_explorer_items(root, self.current_dir)
+                    )
                 continue
             if key not in {10, 13, curses.KEY_ENTER}:
                 continue
@@ -151,11 +158,15 @@ class SessionBrowserApp:
             if chosen.kind == "back":
                 if self.current_dir != root:
                     self.current_dir = self.current_dir.parent
-                    selected_index = 0
+                    selected_index = self._first_selectable_index(
+                        self._list_explorer_items(root, self.current_dir)
+                    )
                 continue
             if chosen.kind == "dir" and chosen.path is not None:
                 self.current_dir = chosen.path
-                selected_index = 0
+                selected_index = self._first_selectable_index(
+                    self._list_explorer_items(root, self.current_dir)
+                )
                 continue
             if chosen.kind == "file" and chosen.path is not None:
                 if self.preview_file(chosen.path):
@@ -225,10 +236,12 @@ class SessionBrowserApp:
             "collapse_threshold": DEFAULT_COLLAPSE_LINE_THRESHOLD,
             "collapse_lines": DEFAULT_COLLAPSED_VISIBLE_LINES,
         }
-        selected_index = 0
+        selected_index = 2
 
         while True:
             items = [
+                ("Cancel", "", "action-cancel"),
+                ("Generate", "", "action-generate"),
                 ("Output", "PDF" if config["pdf"] else "HTML", "toggle"),
                 ("Title", config["title"] or f"(default: {path.name})", "text"),
                 ("Tags", config["tags"] or "(none)", "text"),
@@ -242,17 +255,16 @@ class SessionBrowserApp:
                 ("Events", "On" if config["include_events"] else "Off", "toggle"),
                 ("Collapse Threshold", str(config["collapse_threshold"]), "number"),
                 ("Collapse Lines", str(config["collapse_lines"]), "number"),
-                ("Generate", "", "action-generate"),
-                ("Cancel", "", "action-cancel"),
             ]
 
             self._clear()
             height, width = self.stdscr.getmaxyx()
             self._draw_title(path.name, "Configure export · Enter to edit/toggle · Esc to cancel")
             for index, (label, value, _kind) in enumerate(items):
-                attr = self._selected_attr() if index == selected_index else curses.color_pair(0)
+                attr = self._config_item_attr(index, selected_index, label)
                 line = f"{label:<18} {value}".rstrip()
-                self._addstr(4 + index, 2, line[: width - 4], attr)
+                row = 4 + index + (1 if index >= 2 else 0)
+                self._addstr(row, 2, line[: width - 4], attr)
 
             self._draw_status(height - 2, width)
             key = self.stdscr.getch()
@@ -354,6 +366,7 @@ class SessionBrowserApp:
         items: list[ExplorerItem] = [ExplorerItem("Home", "home")]
         if current_dir != root:
             items.append(ExplorerItem("Back", "back", current_dir.parent))
+        items.append(ExplorerItem("", "separator"))
 
         directories = sorted(
             [path for path in current_dir.iterdir() if path.is_dir()],
@@ -372,6 +385,30 @@ class SessionBrowserApp:
         items.extend(ExplorerItem(path.name, "dir", path) for path in directories)
         items.extend(ExplorerItem(path.name, "file", path) for path in files)
         return items
+
+    def _is_selectable(self, item: ExplorerItem) -> bool:
+        return item.kind != "separator"
+
+    def _first_selectable_index(self, items: list[ExplorerItem]) -> int:
+        for index, item in enumerate(items):
+            if item.kind in {"dir", "file"}:
+                return index
+        for index, item in enumerate(items):
+            if self._is_selectable(item):
+                return index
+        return 0
+
+    def _move_selection(
+        self, items: list[ExplorerItem], selected_index: int, direction: int
+    ) -> int:
+        if not items:
+            return 0
+        next_index = selected_index
+        for _ in range(len(items)):
+            next_index = (next_index + direction) % len(items)
+            if self._is_selectable(items[next_index]):
+                return next_index
+        return selected_index
 
     def _config_key_for_label(self, label: str) -> str | None:
         mapping = {
@@ -395,9 +432,19 @@ class SessionBrowserApp:
         curses.init_pair(3, curses.COLOR_WHITE, -1)
         curses.init_pair(4, curses.COLOR_CYAN, -1)
         curses.init_pair(5, curses.COLOR_RED, -1)
+        curses.init_pair(6, curses.COLOR_GREEN, -1)
 
     def _selected_attr(self) -> int:
         return curses.color_pair(1) | curses.A_BOLD
+
+    def _config_item_attr(self, index: int, selected_index: int, label: str) -> int:
+        if index == selected_index:
+            return self._selected_attr()
+        if label == "Generate":
+            return curses.color_pair(6) | curses.A_BOLD
+        if label == "Cancel":
+            return curses.color_pair(5)
+        return curses.color_pair(0)
 
     def _draw_title(self, title: str, subtitle: str) -> None:
         height, width = self.stdscr.getmaxyx()

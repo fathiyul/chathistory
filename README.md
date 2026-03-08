@@ -1,10 +1,10 @@
 # chathistory
 
-`chathistory` is a local transcript browser and exporter for AI coding session logs. It is built for navigating session history, previewing conversations in the terminal, and exporting readable HTML or PDF archives you can keep or share.
+`chathistory` is a terminal tool for browsing local AI coding session history and exporting shareable HTML or PDF transcripts.
 
 Right now the project supports `Codex` session logs under `~/.codex/sessions/`. `Claude Code` and `OpenCode` are planned later.
 
-## What it does
+## Features
 
 - Browse session files in a terminal UI
 - Preview USER and ASSISTANT messages with lightweight formatting
@@ -12,26 +12,52 @@ Right now the project supports `Codex` session logs under `~/.codex/sessions/`. 
 - Export PDF through headless Chrome
 - Add title, tags, and transcript detail controls at export time
 
-## Requirements
+## Installation
+
+Requirements:
 
 - Python `>=3.13`
 - `uv`
 - `google-chrome` available locally for PDF export
 
-Install dependencies:
+Install globally:
 
 ```bash
-uv sync
+uv tool install .
 ```
 
-## Main app: `cli.py`
+During local development, reinstall after changes:
 
-This is the main interface for the repository.
+```bash
+uv tool install --reinstall .
+```
+
+## Usage
+
+Run the main app:
+
+```bash
+chathistory
+```
+
+This opens the terminal browser for the main workflow: browse sessions, preview chats, configure export options, and generate HTML or PDF output.
+
+Run the direct renderer when you already know the file and flags you want:
+
+```bash
+chathistory-codex input.jsonl
+```
+
+By default, exports are written to the directory where you run the command unless you set `--output`.
+
+## Terminal Browser
+
+This is the primary interface and the main purpose of the project.
 
 Launch it with:
 
 ```bash
-uv run python cli.py
+chathistory
 ```
 
 ### Flow
@@ -57,14 +83,14 @@ uv run python cli.py
 - Consecutive USER messages collapse to only the last one, matching the exported transcript flow
 - USER text is tinted light pink; ASSISTANT text is white
 
-## Direct renderer: `codex.py`
+## Direct Renderer
 
-`codex.py` is the lower-level export tool. Think of it like `ffmpeg`: less guided, more direct, and good for scripting or one-shot conversions.
+`chathistory-codex` is the lower-level export tool. Think of it like `ffmpeg`: less guided, more direct, and good for scripting or one-shot conversions.
 
 Run it with:
 
 ```bash
-uv run python codex.py input.jsonl
+chathistory-codex input.jsonl
 ```
 
 If no input is given, it automatically picks the latest file under `~/.codex/sessions/`.
@@ -74,25 +100,25 @@ If no input is given, it automatically picks the latest file under `~/.codex/ses
 Generate HTML:
 
 ```bash
-uv run python codex.py input.jsonl
+chathistory-codex input.jsonl
 ```
 
 Generate PDF:
 
 ```bash
-uv run python codex.py input.jsonl --pdf
+chathistory-codex input.jsonl --pdf
 ```
 
 Set title and tags:
 
 ```bash
-uv run python codex.py input.jsonl --title "Belajar Auth" --tags "auth, backend"
+chathistory-codex input.jsonl --title "Belajar Auth" --tags "auth, backend"
 ```
 
 Include richer internal records:
 
 ```bash
-uv run python codex.py input.jsonl --full --include-turn-context --include-events
+chathistory-codex input.jsonl --full --include-turn-context --include-events
 ```
 
 ### Flags
@@ -111,6 +137,15 @@ uv run python codex.py input.jsonl --full --include-turn-context --include-event
 - `--include-turn-context` — include turn-context records when `--full` is enabled
 - `--include-events` — include low-level event records when `--full` is enabled
 
+## Development
+
+Run from the repo without installing globally:
+
+```bash
+uv run python cli.py
+uv run python codex.py input.jsonl
+```
+
 ## Output notes
 
 - Browser tab title is fixed to `chathistory`
@@ -124,4 +159,3 @@ uv run python codex.py input.jsonl --full --include-turn-context --include-event
 - `cli.py` — terminal browser and export workflow
 - `codex.py` — direct renderer and shared export logic
 - `assets/` — static assets such as the browser-tab icon
-
